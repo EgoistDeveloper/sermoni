@@ -1,0 +1,105 @@
+version: "3.8"
+
+services:
+  api:
+    build:
+      context: "./api/"
+    container_name: api
+    restart: "always"
+    stdin_open: true
+    tty: true
+    ports:
+      - 2021:2021
+    volumes:
+      - ./api:/var/www/html
+    networks:
+      - api
+      - nginx
+    depends_on:
+      - mongo
+      - redis
+    command: 'npm run start'
+
+  mongo:
+    image: mongo:latest
+    container_name: mongo
+    restart: on-failure
+    ports:
+      - 27017:27017
+    volumes:
+      - mongo-data:/data/db
+    networks: 
+      - mongo-network
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: sermoni
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+    command: mongod --port 27017 --auth
+
+  mongo-express:
+    image: mongo-express:latest
+    container_name: mongo_client
+    restart: always
+    ports:
+      - 8081:8081
+    networks: 
+      - mongo-network
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongo
+      ME_CONFIG_MONGODB_PORT: 27017
+      ME_CONFIG_MONGODB_ENABLE_ADMIN: 1
+      ME_CONFIG_MONGODB_AUTH_DATABASE: admin
+      ME_CONFIG_MONGODB_AUTH_USERNAME: ${MONGO_ROOT_USER}
+      ME_CONFIG_MONGODB_AUTH_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      ME_CONFIG_BASICAUTH_USERNAME: ${MONGO_EXPRESS_LOGIN}
+      ME_CONFIG_BASICAUTH_PASSWORD: ${MONGO_EXPRESS_PASSWORD}
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    restart: "on-failure"
+    stdin_open: true
+    tty: true
+    depends_on:
+      - api
+    ports:
+      - 8080:80
+    volumes:
+      - ./:/var/www/html
+      - ./nginx/conf.d/:/etc/nginx/conf.d/
+    networks:
+      - nginx
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    hostname: redis
+    restart: "always"
+    ports:
+      - 6380:6379
+    networks:
+      - nginx
+
+volumes:
+  mongo-data:
+    external: true
+
+networks:
+  mongo-network:
+    driver: bridge
+
+  api:
+    external: false
+
+  mongo:
+    external: false
+
+  mongo-express:
+    external: false
+
+  nginx:
+    driver: bridge
